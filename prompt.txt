@@ -1,0 +1,295 @@
+You are a senior software engineer and system architect. Your task is to design and implement a production-ready application that performs AI-assisted proofreading of Microsoft Word documents (.docx) using an LLM API.
+
+IMPORTANT:
+The development environment is WINDOWS, not Linux.
+
+All setup instructions, scripts, commands, paths, dependencies, process handling, virtual environment instructions, and filesystem assumptions must be Windows-compatible.
+
+Target environment:
+- Windows 10/11
+- VSCode
+- Python 3.11+
+- PowerShell terminal
+- Local development first
+- No Docker required initially
+- Avoid Linux-specific commands or assumptions
+
+Use Windows-compatible:
+- file paths
+- shell commands
+- package installation instructions
+- environment variable instructions
+- process management
+
+Prefer:
+- PowerShell commands
+- .venv virtual environment
+- pip
+- requirements.txt
+
+Do NOT assume:
+- bash
+- apt
+- systemd
+- Linux filesystem paths
+- WSL
+
+The application must prioritize:
+- correctness over complexity
+- deterministic outputs
+- robust document mapping
+- minimal rewriting behavior
+- production-grade structure and error handling
+
+Do NOT over-engineer beyond the requirements.
+
+# PROJECT GOAL
+
+Build an application that:
+
+1. Accepts a `.docx` file upload
+2. Extracts its content into structured sentence-level units
+3. Sends sentences in chunks to an LLM API for proofreading
+4. The LLM identifies:
+   - grammar errors
+   - typos
+   - incorrect word usage
+   - unnatural phrasing (ONLY if clearly non-native or confusing)
+5. The LLM returns STRICT structured JSON corrections only (no prose rewriting of full paragraphs)
+6. The backend maps corrections back to sentence IDs
+7. The system injects comments into the original Word document next to the relevant sentences
+8. Outputs a new `.docx` file with comments
+9. User downloads annotated document
+
+# CRITICAL DESIGN CONSTRAINTS
+
+## 1. NO FULL TEXT REWRITES
+
+The LLM must NEVER rewrite full sentences or paragraphs.
+
+Only allowed outputs:
+- single-word corrections
+- minimal phrase replacements
+- short suggestion lists (max 3 options) ONLY for unnatural phrasing
+
+# 2. SENTENCE ID SYSTEM (MANDATORY)
+
+All text must be preprocessed into structured sentences.
+
+Each sentence MUST have:
+- paragraph_id (int)
+- sentence_id (int)
+- text (string)
+
+Example:
+
+{
+  "paragraph_id": 3,
+  "sentence_id": 18,
+  "text": "She go to school every day."
+}
+
+The LLM MUST reference sentence_id only.
+
+No quoting of original sentences is allowed.
+
+# 3. CHUNKING STRATEGY
+
+- Default chunk size: full chapter (~2000 words)
+- If chapter exceeds token limit:
+  - split by paragraph boundaries first
+  - then by sentence grouping
+- Maintain sentence IDs across chunks
+- Preserve ordering
+
+# 4. LLM OUTPUT FORMAT (STRICT JSON ONLY)
+
+The LLM must output ONLY valid JSON in this schema:
+
+{
+  "issues": [
+    {
+      "sentence_id": 12,
+      "type": "GRAMMAR | TYPO | TENSE | PREPOSITION | WORD_CHOICE | UNNATURAL",
+      "issue": "short description of problem",
+      "fix": "minimal correction OR corrected token/phrase",
+      "suggestions": ["optional", "only", "for unnatural phrasing"]
+    }
+  ]
+}
+
+Rules:
+- If TYPO or GRAMMAR → only ONE fix allowed
+- If UNNATURAL → max 3 suggestions
+- No paragraph rewrites
+- No stylistic rewriting
+- No explanations unless necessary for UNNATURAL type
+- Must be machine-parseable JSON
+
+# 5. LLM DETECTION RULES
+
+The model must ONLY flag:
+
+Allowed:
+- grammatical errors
+- verb tense errors
+- incorrect prepositions
+- spelling mistakes
+- incorrect word usage
+- phrases that would clearly sound non-native or confusing to a fluent English reader
+
+Forbidden:
+- stylistic improvement
+- rewriting for elegance
+- improving tone
+- changing voice
+- removing fragments that are intentional
+- subjective “better phrasing”
+
+# 6. OUTPUT MINIMIZATION RULE
+
+To reduce token usage:
+
+- TYPO → only corrected word
+- GRAMMAR → only corrected phrase
+- WORD_CHOICE → minimal replacement
+- UNNATURAL → max 3 alternatives, no explanation unless necessary
+
+# 7. BACKEND ARCHITECTURE REQUIREMENTS
+
+Implement using:
+
+Preferred stack:
+- Python
+- FastAPI
+- python-docx
+- Pydantic
+- httpx or requests
+
+Frontend:
+- minimal UI acceptable
+- simple upload/download flow
+- optional React frontend later
+- backend-first implementation preferred
+
+Core modules:
+
+## A. DOCX PARSER
+- Extract paragraphs
+- Split into sentences
+- Assign stable IDs
+
+## B. CHUNKER
+- Groups sentences into LLM-safe batches
+
+## C. LLM CLIENT
+- Sends chunk + instructions
+- Enforces structured JSON response
+- Retries on invalid JSON
+
+## D. CORRECTION MAPPER
+- Maps sentence_id → correction
+
+## E. DOCX ANNOTATOR
+- Inserts Word comments at sentence level
+- Keeps original text unchanged
+
+## F. EXPORT MODULE
+- Outputs new `.docx` with comments
+
+# 8. WORD COMMENT STRATEGY
+
+Attach comments at sentence-level granularity.
+
+Each comment must include:
+- error type
+- fix
+- optional suggestion(s)
+
+Example format:
+
+[GRAMMAR] → goes
+
+[UNNATURAL]
+Suggestions:
+- throw a party
+- host a party
+- have a party
+
+Do NOT modify original text directly.
+
+Only inject comments.
+
+# 9. WINDOWS DEVELOPMENT REQUIREMENTS
+
+The implementation must include:
+
+- PowerShell setup commands
+- Windows-compatible path handling using pathlib
+- requirements.txt
+- .env support
+- instructions for running locally on Windows
+
+Use commands like:
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+Do NOT use:
+- source venv/bin/activate
+- chmod
+- apt install
+- bash scripts
+
+# 10. ERROR HANDLING
+
+Must include:
+- invalid docx handling
+- empty document handling
+- malformed JSON retry (max 2 retries)
+- API timeout retry
+- chunk failure isolation
+- logging
+
+# 11. PERFORMANCE REQUIREMENTS
+
+- batch LLM calls per chunk
+- async processing preferred
+- minimize API calls
+- avoid per-sentence requests
+
+# 12. ACCEPTANCE CRITERIA
+
+System is complete when:
+- user uploads docx
+- system processes full document
+- LLM returns structured corrections
+- comments appear in correct sentences
+- downloaded docx is valid and opens in Microsoft Word
+- no sentence rewriting occurs in output document
+
+# 13. IMPLEMENTATION STYLE
+
+- clean modular architecture
+- clear folder structure
+- separation of concerns
+- typed models preferred
+- logging for each pipeline stage
+- comments explaining complex logic
+
+# 14. IMPORTANT FINAL INSTRUCTION
+
+You are NOT building a chatbot.
+
+You are building a deterministic Windows-based document processing pipeline for AI-assisted proofreading.
+
+# 15. DOCX
+You have 1-Vision.docx that you can use to try the script on.
+
+All behavior must be:
+- structured
+- predictable
+- reproducible
+- safe for writers
+- minimally invasive

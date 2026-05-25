@@ -1,0 +1,3 @@
+"""
+DOCX Proofreader Package
+"""
